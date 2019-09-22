@@ -1,0 +1,1321 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: My API Gateway and Lambda function
+Parameters:
+  apiGatewayStageName:
+    Type: String
+    AllowedPattern: '^[a-z0-9]+$'
+    Default: call
+  SolutionName:
+    Type: String
+    AllowedPattern: '^[a-zA-Z0-9]+[a-zA-Z0-9-]+[a-zA-Z0-9]+$'
+    Default: my-solution
+  AuthName:
+    Type: String
+    Default: cognito
+Resources:
+  apiGateway:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: my-api
+      Description: My API
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: b4cae6dc-a38d-40c5-85d2-36c6a599db99
+  apiGatewayDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn:
+      - AGMUBKK
+      - metaDataPosttMethod
+      - recipeLookupGetMethod
+      - recipeLookupPostMethod
+    Properties:
+      RestApiId: !Ref apiGateway
+      StageName: !Ref apiGatewayStageName
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 2c080399-e280-4bad-8ff5-4bce2817e16e
+  dynamoDbTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: !Sub '${SolutionName}-metadata-table'
+      AttributeDefinitions:
+        - AttributeName: ingName
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ingName
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: '5'
+        WriteCapacityUnits: '5'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 88e7f239-e029-43df-979e-46dd6df72e00
+  recipeListTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: !Sub '${SolutionName}-recipes-table'
+      AttributeDefinitions:
+        - AttributeName: recipeName
+          AttributeType: S
+      KeySchema:
+        - AttributeName: recipeName
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: '5'
+        WriteCapacityUnits: '5'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 5267ef3a-37ae-4baa-832c-e81045453370
+  metadataGetResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref apiGateway
+      PathPart: metadata-get
+      ParentId: !GetAtt 
+        - apiGateway
+        - RootResourceId
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: d073291c-1011-465b-af34-0683469ead21
+  metaDataPosttMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref apiGateway
+      AuthorizationType: COGNITO_USER_POOLS
+      HttpMethod: POST
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: !Ref emptyResponseModel
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri: 'arn:aws:apigateway:us-east-1:dynamodb:action/PutItem'
+        Credentials: !GetAtt accessMetaDbRole.Arn
+        RequestTemplates:
+          application/json: !Sub >-
+            {  "TableName": "${SolutionName}-metadata-table", "Key": {"ingName":
+            { "S" : "$input.path('$.ingName')"}}, "Item" : {"ingName" : { "S" :
+            "$input.path('$.ingName')"}, "metaTag" : {"N" :
+            "$input.path('$.metaTag')"}} }
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+      AuthorizerId: !Ref AGA458BA
+      ResourceId: !Ref AGRKUQV
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: f5263883-bc0a-42e7-b248-da0ffe9d5060
+    DependsOn:
+      - metadataGetResource
+      - dynamoDbTable
+  AGMUBKK:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      ResourceId: !Ref metadataGetResource
+      RestApiId: !Ref apiGateway
+      AuthorizationType: COGNITO_USER_POOLS
+      HttpMethod: POST
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: !Ref emptyResponseModel
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri: 'arn:aws:apigateway:us-east-1:dynamodb:action/GetItem'
+        Credentials: !GetAtt accessMetaDbRole.Arn
+        RequestTemplates:
+          application/json: !Sub >-
+            {  "TableName": "${SolutionName}-metadata-table",  "Key" :
+            {"ingName" : {"S" : "$input.path('$.ingName')"}} }
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: |-
+                #set($inputRoot = $input.path('$')) {
+                    "Item": {"ingName" : "$inputRoot.Item.ingName.S", "metaTag": "$inputRoot.Item.metaTag.N"}
+                }
+      AuthorizerId: !Ref AGA458BA
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 6cd2e5cc-6072-46d6-904b-41f1374e13b6
+  recipeLookupResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref apiGateway
+      PathPart: recipes
+      ParentId: !GetAtt 
+        - apiGateway
+        - RootResourceId
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 50d220e7-a18f-469b-b1c8-798ce46c4743
+  recipeLookupGetMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      ResourceId: !Ref recipeLookupResource
+      RestApiId: !Ref apiGateway
+      AuthorizationType: COGNITO_USER_POOLS
+      HttpMethod: GET
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: !Ref emptyResponseModel
+      Integration:
+        RequestTemplates:
+          application/json: !Sub '{  "TableName": "${SolutionName}-recipes-table" }'
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri: 'arn:aws:apigateway:us-east-1:dynamodb:action/Scan'
+        Credentials: !GetAtt accessDbRole.Arn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: |-
+                #set($inputRoot = $input.path('$')) {
+                    "Items": [
+                        #foreach($elem in $inputRoot.Items) {
+                            "recipeName": "$elem.recipeName.S",
+                            "recipeLink": "$elem.recipeLink.S",
+                            "ingredients": [
+                            #foreach($item in $elem.ingredients.L)
+                                {
+                                    "itemName" : "$item.M.itemName.S",
+                                    "amount" : "$item.M.amount.S"
+                                }#if($foreach.hasNext),#end
+                            #end
+                            ],
+                            "isSelected":$elem.isSelected.BOOL
+                        }#if($foreach.hasNext),#end
+                  #end
+                    ]
+                }
+      AuthorizerId: !Ref AGA458BA
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: def7832e-7a8d-40bc-a9ec-ed7a6fd05438
+    DependsOn:
+      - recipeListTable
+      - recipeLookupResource
+  accessMetaDbRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+      Policies:
+        - PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:Scan'
+                Resource:
+                  - !Sub >-
+                    arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SolutionName}-metadata-table
+          PolicyName: dynamodb
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 1c849034-e0de-4e97-a757-c3e2feb4cdcf
+  accessDbRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+      Policies:
+        - PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:Scan'
+                Resource:
+                  - !Sub >-
+                    arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SolutionName}-recipes-table
+          PolicyName: dynamodb
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: a1741058-e2e9-47a1-bc2c-2ba628cb06cb
+    DependsOn:
+      - recipeListTable
+  
+  lambdaRequestApiMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      AuthorizationType: "COGNITO_USER_POOL"
+      HttpMethod: "POST"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS_PROXY"
+        Uri: !Sub
+          - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+          - lambdaArn: !GetAtt "lambdaFunction.Arn"
+      ResourceId: !GetAtt "apiGateway.lambdaAccessResource"
+      RestApiId: !Ref "apiGateway"
+
+# Inserting code for lambda infrastructure.
+  requestGroupLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Code:
+        ZipFile: |
+          def handler(event,context):
+            return {
+              'body': 'Hello there {0}'.format(event['requestContext']['identity']['sourceIp']),
+              'headers': {
+                'Content-Type': 'text/plain'
+              },
+              'statusCode': 200
+            }
+      Description: "My function"
+      FunctionName: !Sub ${SolutionName}-request-group-lambda
+      Handler: "index.handler"
+      MemorySize: 128
+      Role: !GetAtt "lambdaIAMRole.Arn"
+      Runtime: "python2.7"
+      Timeout: 10
+  lambdaApiGatewayInvoke:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt "requestGroupLambda.Arn"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${my-api}/*/POST/"
+  lambdaIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "sts:AssumeRole"
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${SolutionName}-request-group-lambda:*"
+          PolicyName: "lambda"
+  lambdaLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${SolutionName}-request-group-lambda"
+      RetentionInDays: 90
+
+  # lambda 2
+  acceptGroupLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Code:
+        ZipFile: |
+          def handler(event,context):
+            return {
+              'body': 'Hello there {0}'.format(event['requestContext']['identity']['sourceIp']),
+              'headers': {
+                'Content-Type': 'text/plain'
+              },
+              'statusCode': 200
+            }
+      Description: "My function"
+      FunctionName: !Sub ${SolutionName}-accept-group-lambda
+      Handler: "index.handler"
+      MemorySize: 128
+      Role: !GetAtt "lambdaIAMRole.Arn"
+      Runtime: "python2.7"
+      Timeout: 10
+  lambdaApiGatewayInvoke:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt "acceptGroupLambda.Arn"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${my-api}/*/POST/"
+  lambdaIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "sts:AssumeRole"
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Effect: "Allow"
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${SolutionName}-accept-group-lambda:*"
+          PolicyName: "lambda"
+  acceptLambdaLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${SolutionName}-accept-group-lambda"
+      RetentionInDays: 90
+
+  
+  recipeLookupPostMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      ResourceId: !Ref recipeLookupResource
+      RestApiId: !Ref apiGateway
+      AuthorizationType: COGNITO_USER_POOLS
+      HttpMethod: POST
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: !Ref emptyResponseModel
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri: 'arn:aws:apigateway:us-east-1:dynamodb:action/PutItem'
+        Credentials: !GetAtt accessDbRole.Arn
+        RequestTemplates:
+          application/json: !Sub >-
+            {  "TableName": "${SolutionName}-recipes-table", "Item": {
+            "recipeName": { "S": "$input.path('$.recipeName')" }, "recipeLink":
+            { "S": "$input.path('$.recipeLink')" }, "ingredients": { "L": [
+            #foreach ($item in $input.path('$.ingredients')) { "M" : {
+            "itemName" : { "S" : "$item.itemName" }, "amount" : { "S" :
+            "$item.amount" } } } #end ] }, "isSelected": { "BOOL":
+            "$input.path('$.isSelected')" } } }
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+      AuthorizerId: !Ref AGA458BA
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 6437b08a-758c-4914-b024-da66a27a67b4
+    DependsOn:
+      - recipeListTable
+      - recipeLookupResource
+  AGA458BA:
+    Type: 'AWS::ApiGateway::Authorizer'
+    Properties:
+      RestApiId: !Ref apiGateway
+      Type: COGNITO_USER_POOLS
+      ProviderARNs:
+        - !GetAtt UserPool.Arn
+      IdentitySource: method.request.header.Authorization
+      Name: CognitoAuthPool
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 0b7c5706-d44f-4b6b-b41d-1cb45e53b13a
+  UserPool:
+    Type: 'AWS::Cognito::UserPool'
+    Properties:
+      UserPoolName: !Sub '${AuthName}-user-pool'
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 6
+          RequireLowercase: false
+          RequireNumbers: false
+          RequireSymbols: false
+          RequireUppercase: false
+          TemporaryPasswordValidityDays: 10
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 592e667d-4036-462a-a10e-a387b2fca2f0
+  UserPoolClient:
+    Type: 'AWS::Cognito::UserPoolClient'
+    Properties:
+      ClientName: !Sub '${AuthName}-client'
+      GenerateSecret: false
+      UserPoolId: !Ref UserPool
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: eb1b4000-110e-4bee-b722-7fc63cb9b4ea
+  CognitoUnAuthorizedRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action:
+              - 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref idPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': unauthenticated
+      Policies:
+        - PolicyName: CognitoUnauthorizedPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'mobileanalytics:PutEvents'
+                  - 'cognito-sync:*'
+                Resource: '*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: e5167409-6a62-45c1-aa20-54facb9eeff8
+  CognitoAuthorizedRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action:
+              - 'sts:AssumeRoleWithWebIdentity'
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref idPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': authenticated
+      Policies:
+        - PolicyName: CognitoAuthorizedPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'mobileanalytics:PutEvents'
+                  - 'cognito-sync:*'
+                  - 'cognito-identity:*'
+                Resource: '*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 0e2f2ad1-e8e3-4458-b0ad-69adaee2b2b9
+  IdentityPoolRoleMapping:
+    Type: 'AWS::Cognito::IdentityPoolRoleAttachment'
+    Properties:
+      IdentityPoolId: !Ref idPool
+      Roles:
+        authenticated: !GetAtt CognitoAuthorizedRole.Arn
+        unauthenticated: !GetAtt CognitoUnAuthorizedRole.Arn
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: c9babf91-2497-4d83-ac97-95b5d9c7f406
+  idPool:
+    Type: 'AWS::Cognito::IdentityPool'
+    Properties:
+      IdentityPoolName: !Sub '${AuthName}Identity'
+      AllowUnauthenticatedIdentities: true
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: b273f4c1-6642-4599-8d0b-ae0acde452ec
+  emptyResponseModel:
+    Type: 'AWS::ApiGateway::Model'
+    Properties:
+      RestApiId: !Ref apiGateway
+      ContentType: application/json
+      Name: EmptySchema
+      Schema:
+        $schema: 'http://json-schema.org/draft-04/schema#'
+        title: Empty Schema
+        type: object
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 2dc8d0a6-8adf-48ea-9221-3edeb03b752d
+  AGRKUQV:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref apiGateway
+      PathPart: metadata-post
+      ParentId: !GetAtt 
+        - apiGateway
+        - RootResourceId
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+  SendGroupRequestLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties: {}
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: dbdbaa95-0953-47b7-83ba-515b53de36be
+  AcceptGroupRequestLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties: {}
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 59d034ad-9c43-48bd-98e2-c39041212bcc
+Metadata:
+  'AWS::CloudFormation::Designer':
+    b4cae6dc-a38d-40c5-85d2-36c6a599db99:
+      size:
+        width: 770
+        height: 690
+      position:
+        x: 560
+        'y': 1090
+      z: 1
+      embeds:
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - 2dc8d0a6-8adf-48ea-9221-3edeb03b752d
+        - 0b7c5706-d44f-4b6b-b41d-1cb45e53b13a
+        - 50d220e7-a18f-469b-b1c8-798ce46c4743
+        - d073291c-1011-465b-af34-0683469ead21
+        - 2c080399-e280-4bad-8ff5-4bce2817e16e
+    2c080399-e280-4bad-8ff5-4bce2817e16e:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 920
+        'y': 1470
+      z: 2
+      parent: b4cae6dc-a38d-40c5-85d2-36c6a599db99
+      embeds: []
+      iscontainedinside:
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+      dependson:
+        - 6cd2e5cc-6072-46d6-904b-41f1374e13b6
+        - f5263883-bc0a-42e7-b248-da0ffe9d5060
+        - def7832e-7a8d-40bc-a9ec-ed7a6fd05438
+        - 6437b08a-758c-4914-b024-da66a27a67b4
+    88e7f239-e029-43df-979e-46dd6df72e00:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 450
+        'y': 810
+      z: 1
+      embeds: []
+    5267ef3a-37ae-4baa-832c-e81045453370:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 750
+        'y': 780
+      z: 1
+      embeds: []
+    d073291c-1011-465b-af34-0683469ead21:
+      size:
+        width: 200
+        height: 160
+      position:
+        x: 1040
+        'y': 1540
+      z: 2
+      parent: b4cae6dc-a38d-40c5-85d2-36c6a599db99
+      embeds:
+        - 6cd2e5cc-6072-46d6-904b-41f1374e13b6
+      iscontainedinside:
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+    f5263883-bc0a-42e7-b248-da0ffe9d5060:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 730
+        'y': 1550
+      z: 3
+      parent: de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+      embeds: []
+      isassociatedwith:
+        - 0b7c5706-d44f-4b6b-b41d-1cb45e53b13a
+      iscontainedinside:
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+        - de9fb09a-b195-4ce7-bd3d-7f759ac3078f
+      dependson:
+        - d073291c-1011-465b-af34-0683469ead21
+        - 88e7f239-e029-43df-979e-46dd6df72e00
+    6cd2e5cc-6072-46d6-904b-41f1374e13b6:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1130
+        'y': 1590
+      z: 3
+      parent: d073291c-1011-465b-af34-0683469ead21
+      embeds: []
+      isassociatedwith:
+        - 0b7c5706-d44f-4b6b-b41d-1cb45e53b13a
+      iscontainedinside:
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+        - d073291c-1011-465b-af34-0683469ead21
+      dependson:
+        - d073291c-1011-465b-af34-0683469ead21
+    50d220e7-a18f-469b-b1c8-798ce46c4743:
+      size:
+        width: 320
+        height: 200
+      position:
+        x: 960
+        'y': 1200
+      z: 2
+      parent: b4cae6dc-a38d-40c5-85d2-36c6a599db99
+      embeds:
+        - 6437b08a-758c-4914-b024-da66a27a67b4
+        - def7832e-7a8d-40bc-a9ec-ed7a6fd05438
+      iscontainedinside:
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+    def7832e-7a8d-40bc-a9ec-ed7a6fd05438:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1170
+        'y': 1280
+      z: 3
+      parent: 50d220e7-a18f-469b-b1c8-798ce46c4743
+      embeds: []
+      isassociatedwith:
+        - 0b7c5706-d44f-4b6b-b41d-1cb45e53b13a
+      iscontainedinside:
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+      dependson:
+        - 5267ef3a-37ae-4baa-832c-e81045453370
+        - 50d220e7-a18f-469b-b1c8-798ce46c4743
+    a1741058-e2e9-47a1-bc2c-2ba628cb06cb:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 930
+        'y': 780
+      z: 1
+      embeds: []
+      dependson:
+        - 5267ef3a-37ae-4baa-832c-e81045453370
+    6437b08a-758c-4914-b024-da66a27a67b4:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1050
+        'y': 1280
+      z: 3
+      parent: 50d220e7-a18f-469b-b1c8-798ce46c4743
+      embeds: []
+      isassociatedwith:
+        - 0b7c5706-d44f-4b6b-b41d-1cb45e53b13a
+      iscontainedinside:
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+      dependson:
+        - 5267ef3a-37ae-4baa-832c-e81045453370
+        - 50d220e7-a18f-469b-b1c8-798ce46c4743
+    0b7c5706-d44f-4b6b-b41d-1cb45e53b13a:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 650
+        'y': 1320
+      z: 2
+      parent: b4cae6dc-a38d-40c5-85d2-36c6a599db99
+      embeds: []
+      iscontainedinside:
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+    592e667d-4036-462a-a10e-a387b2fca2f0:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 210
+        'y': 1020
+      z: 1
+      embeds: []
+    eb1b4000-110e-4bee-b722-7fc63cb9b4ea:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 90
+        'y': 1050
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 592e667d-4036-462a-a10e-a387b2fca2f0
+    b273f4c1-6642-4599-8d0b-ae0acde452ec:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 60
+        'y': 90
+      z: 1
+      embeds: []
+    0e2f2ad1-e8e3-4458-b0ad-69adaee2b2b9:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 90
+        'y': 780
+      z: 1
+      embeds: []
+    e5167409-6a62-45c1-aa20-54facb9eeff8:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 270
+        'y': 840
+      z: 1
+      embeds: []
+    c9babf91-2497-4d83-ac97-95b5d9c7f406:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 150
+        'y': 900
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - b273f4c1-6642-4599-8d0b-ae0acde452ec
+    2dc8d0a6-8adf-48ea-9221-3edeb03b752d:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 820
+        'y': 1350
+      z: 2
+      parent: b4cae6dc-a38d-40c5-85d2-36c6a599db99
+      embeds: []
+      iscontainedinside:
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+    de9fb09a-b195-4ce7-bd3d-7f759ac3078f:
+      size:
+        width: 230
+        height: 230
+      position:
+        x: 640
+        'y': 1470
+      z: 2
+      parent: b4cae6dc-a38d-40c5-85d2-36c6a599db99
+      embeds:
+        - f5263883-bc0a-42e7-b248-da0ffe9d5060
+      iscontainedinside:
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+        - b4cae6dc-a38d-40c5-85d2-36c6a599db99
+    1c849034-e0de-4e97-a757-c3e2feb4cdcf:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1050
+        'y': 870
+      z: 1
+      embeds: []
+    dbdbaa95-0953-47b7-83ba-515b53de36be:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 620
+        'y': 1840
+      z: 1
+      embeds: []
+    59d034ad-9c43-48bd-98e2-c39041212bcc:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 1460
+        'y': 1240
+      z: 0
+      embeds: []
