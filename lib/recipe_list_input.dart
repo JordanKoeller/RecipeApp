@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:tutorial/ingredient_checklist.dart';
+import 'package:tutorial/meta_engine.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'recipe_form.dart';
@@ -27,7 +28,8 @@ class RecipeListState extends State<RecipeList> {
     if (await canLaunch(url)) {
       await launch(url);
     } else {
-      throw 'Could not launch $url';
+      // final snack = SnackBar(content: Text("Could not launch $url"));
+      // Scaffold.of(context).showSnackBar(snack);
     }
   }
 
@@ -117,13 +119,13 @@ class RecipeListState extends State<RecipeList> {
     return FloatingActionButton.extended(
         icon: Icon(Icons.account_balance),
         label: Text("New List"),
-        onPressed: () {
+        onPressed: () async {
           Backend.clearSelected();
-          Navigator.of(context)
+          await Navigator.of(context)
               .push(MaterialPageRoute<void>(builder: (BuildContext context) {
             return RecipeList(selection: true);
           }));
-          Backend.pushRecipesToCloud();
+          MetaDataEngine.findTags(Backend.ingredientsNotInCart());
         });
   }
 

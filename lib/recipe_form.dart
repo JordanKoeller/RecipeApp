@@ -20,13 +20,15 @@ class RecipeFormState extends State<RecipeForm> {
   String _url = "Recipe Link";
   String _name = "Recipe Name";
   int counter = 0;
+  // FocusNode amtFocus;
+  // FocusNode ingFocus;
 
   Recipe getRecipe() {
     final ret = Recipe(_name, _url, _ingredients.where((Ingredient ing) => ing.itemName != "Default").toList());
     return ret;
   }
 
-  Widget _buildInputList() {
+  Widget _buildInputList(BuildContext context) {
     final urlInput = TextField(
       decoration: InputDecoration(border: InputBorder.none, hintText: _url),
       onSubmitted: (String input) {
@@ -62,16 +64,16 @@ class RecipeFormState extends State<RecipeForm> {
         } else if (ii == 1) {
           return ListTile(title: urlInput);
         } else {
-          final ret = _makeTile(ii - 2);
+          final ret = _makeTile(ii - 2, context);
           return ret;
         }
       },
     );
   }
 
-  ListTile _makeTile(int index) {
+  ListTile _makeTile(int index, BuildContext context) {
     if (index == _ingredients.length) {
-      _ingredients.add(new Ingredient("Default", "Default", meta:MetaTag.Category));
+      _ingredients.add(new Ingredient("Ingredient", "Amount", meta:MetaTag.Category));
     }
     List<MetaTag> sortedTags = List.from(MetaTag.values);
     sortedTags.sort((MetaTag p, MetaTag n) => p.toString().compareTo(n.toString()));
@@ -89,7 +91,6 @@ class RecipeFormState extends State<RecipeForm> {
       },
       hint: Text(_ingredients[index].metadata.toString().split(".").last),
     );
-    final amtFocusNode = FocusNode();
     final amtInput = TextField(
       decoration: InputDecoration(border: null, hintText: _ingredients[index].amount),
       onSubmitted: (String input) {
@@ -101,7 +102,7 @@ class RecipeFormState extends State<RecipeForm> {
       onChanged: (String input) {
         _ingredients[index].amount = input;
       },
-      focusNode: amtFocusNode,
+      // focusNode: amtFocus,
     );
     final ingInput = TextField(
       decoration: InputDecoration(border: null, hintText: _ingredients[index].itemName),
@@ -139,6 +140,23 @@ class RecipeFormState extends State<RecipeForm> {
 
   @override
   Widget build(BuildContext context) {
-    return _buildInputList();
+    return _buildInputList(context);
   }
+
+  // @override
+  // void initState() {
+  //   super.initState();
+
+  //   amtFocus = FocusNode();
+  //   ingFocus = FocusNode();
+  // }
+
+  // @override
+  // void dispose() {
+  //   // Clean up the focus node when the Form is disposed.
+  //   amtFocus.dispose();
+  //   ingFocus.dispose();
+
+  //   super.dispose();
+  // }
 }

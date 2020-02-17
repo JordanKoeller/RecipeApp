@@ -21,9 +21,11 @@ class Ingredient {
     metadata = meta;
   }
   void setMetadata() {
-    MetaDataEngine.getTag(this.itemName).then((MetaTag res) {
-      this.metadata = res;
-    });
+    if (metadata == MetaTag.Default || metadata == MetaTag.Category || metadata == null) {
+      MetaDataEngine.getTag(this.itemName).then((MetaTag res) {
+        this.metadata = res;
+      });
+    }
   }
 
   factory Ingredient.fromJson(Map<String, dynamic> json) =>
@@ -43,8 +45,6 @@ class Recipe {
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
     final ret = _$RecipeFromJson(json);
-    if (ret.isSelected)
-      ret.ingredients.forEach((Ingredient ing) => ing.setMetadata());
     return ret;
   }
 
@@ -104,7 +104,6 @@ class Backend {
   }
 
   static Future<void> synchronizeRecipes() async {
-    log("Pulling recipes from the cloud");
     final response = await pushToEndpoint(RestMethod.GET, "/recipes", {});
     if (response != null) {
       List elems =
@@ -117,14 +116,15 @@ class Backend {
     } else {
       log("Response of null");
     }
+    final ings = _recipes.where((Recipe r) => r.isSelected).expand((Recipe r) => r.ingredients).toList();
+    MetaDataEngine.findTags(ings);
   }
 
   static void pushRecipesToCloud() async {
-    log("Pushing local recipes to cloud");
     final credentials = await _credentials();
     if (credentials != null) {
       _recipes.forEach((Recipe r) async {
-      await pushToEndpoint(RestMethod.POST, "/recipes", r.toJson());
+      await pushToEndpoint(RestMethod.POST, "/recipes", r.toJson(), jsonEncode: false);
       });
     }
   }
@@ -185,7 +185,7 @@ class Backend {
   // }
 
   static Future<http.Response> pushToEndpoint(
-      RestMethod method, String endpoint, Map<String, dynamic> body) async {
+      RestMethod method, String endpoint, Map<String, dynamic> body, {bool jsonEncode = true}) async {
     final credentials = await _credentials();
     if (credentials != null) {
       switch (method) {
@@ -196,7 +196,7 @@ class Backend {
                   'Authorization': _userService.getAccessToken(),
                   'content-type': 'application/json'
                 },
-                body: body.toString());
+                body: jsonEncode ? json.encode(body) : body.toString());
           }
         case RestMethod.GET:
           {

@@ -152,7 +152,7 @@ class UserService {
       return null;
     }
     final payload = (_session.getIdToken().decodePayload() as Map<String, dynamic>);
-    payload.keys.forEach((String k) => log(k + " -> " + payload[k].toString()));
+    // payload.keys.forEach((String k) => log(k + " -> " + payload[k].toString()));
     // log((_session.getIdToken().decodePayload() as Map<String, dynamic>).keys.toString());
     return _session.getIdToken().getJwtToken();
   }
@@ -658,6 +658,9 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<UserService> _getValues() async {
     await _userService.init();
     _isAuthenticated = await _userService.checkAuthenticated();
+    if (_isAuthenticated) {
+      await Backend.setUserService(_userService);
+    }
     return _userService;
   }
 
@@ -713,8 +716,6 @@ class _LoginScreenState extends State<LoginScreen> {
         builder: (context, AsyncSnapshot<UserService> snapshot) {
           if (snapshot.hasData) {
             if (_isAuthenticated) {
-              Backend.setUserService(_userService);
-
               return new MyApp();
             }
             final Size screenSize = MediaQuery.of(context).size;
